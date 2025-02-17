@@ -71,30 +71,3 @@ jobs:
         run: terraform apply -auto-approve -input=false
         env:
           TF_APPROVE: true
-
-
-
-name: Test Branch Name
-
-on:
-  pull_request:
-    branches:
-      - master
-  push:
-    branches:
-      - master
-
-jobs:
-  test-branch-name:
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v3
-
-      - name: Debug Branch Name
-        run: |
-          echo "GitHub Ref: ${{ github.ref }}"
-          echo "GitHub Head Ref: ${{ github.head_ref }}"
-          echo "Branch Name: ${GITHUB_REF#refs/heads/}"
-        env:
-          GITHUB_REF: ${{ github.ref }}
