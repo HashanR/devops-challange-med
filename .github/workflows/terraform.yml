@@ -20,9 +20,11 @@ jobs:
       contents: read
       pull-requests: write
     steps:
-      - uses: actions/checkout@v3
+      - name: Checkout code
+        uses: actions/checkout@v3
 
-      - uses: hashicorp/setup-terraform@v2
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v2
         with:
           terraform_version: 1.5.0
 
@@ -32,9 +34,11 @@ jobs:
         continue-on-error: true
 
       - name: Terraform Init
+        id: init
         run: terraform init
 
       - name: Terraform Validate
+        id: validate
         run: terraform validate
 
       - name: Terraform Plan
@@ -46,41 +50,61 @@ jobs:
           echo "EOF" >> $GITHUB_OUTPUT
         continue-on-error: true
 
-      - uses: actions/github-script@v6
+      - name: Post PR Comment
         if: always() && github.event_name == 'pull_request'
+        uses: actions/github-script@v6
         env:
           PLAN: "${{ steps.plan.outputs.plan_output }}"
         with:
           script: |
-            const output = `#### Terraform Format \`${{ steps.fmt.outcome }}\`
-            #### Validation \`${{ steps.validate.outcome }}\`
-            #### Plan Result \`${{ steps.plan.outcome }}\`
-            
-            ${process.env.PLAN ? `<details><summary>Plan Output</summary>
-            
+            const statusIcons = {
+              success: '✅ Succeeded',
+              failure: '❌ Failed',
+              skipped: '⚠️ Skipped'
+            };
+
+            const output = `## Terraform CI Report 🔍
+
+            ### Execution Results
+            **Format & Style** 🖌️: ${statusIcons['${{ steps.fmt.outcome }}']}  
+            **Initialization** ⚙️: ${statusIcons['${{ steps.init.outcome }}']}  
+            **Validation** 🤖: ${statusIcons['${{ steps.validate.outcome }}']}  
+            **Plan** 📖: ${statusIcons['${{ steps.plan.outcome }}']}
+
+            ${process.env.PLAN ? `
+            <details><summary>📋 Detailed Plan Output</summary>
+
             \`\`\`terraform
             ${process.env.PLAN}
             \`\`\`
-            
-            </details>` : 'No plan output available'}
-            
-            *Triggered by @${{ github.actor }}*`;
-            
+
+            </details>
+            ` : '> 🚫 No plan output generated'}
+
+            *Triggered by: @${{ github.actor }}*  
+            *Workflow run: [#${{ github.run_number }}](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})*`;
+
             github.rest.issues.createComment({
               issue_number: context.issue.number,
               owner: context.repo.owner,
               repo: context.repo.repo,
               body: output
-            })
+            });
+
+      - name: Fail workflow if plan failed
+        if: steps.plan.outcome == 'failure'
+        run: exit 1
 
   terraform-apply:
     name: "Terraform Apply"
     runs-on: ubuntu-latest
     if: github.event_name == 'push' && github.ref == 'refs/heads/master'
     steps:
-      - uses: actions/checkout@v3
+      - name: Checkout code
+        uses: actions/checkout@v3
 
-      - uses: hashicorp/setup-terraform@v2
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v2
         with:
           terraform_version: 1.5.0
 
@@ -91,5 +115,3 @@ jobs:
         run: |
           terraform plan -input=false -no-color
           terraform apply -auto-approve -input=false
-        env:
-          TF_APPROVE: true
