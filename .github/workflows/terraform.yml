@@ -12,19 +12,17 @@ env:
   AWS_DEFAULT_REGION: "eu-north-1"
 
 jobs:
-  terraform-lint-format-plan:
-    name: "Terraform Lint, Format, and Plan"
+  terraform-validation:
+    name: "Terraform Validate/Plan"
     runs-on: ubuntu-latest
     if: github.event_name == 'pull_request'
     permissions:
       contents: read
       pull-requests: write
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v3
+      - uses: actions/checkout@v3
 
-      - name: Set up Terraform
-        uses: hashicorp/setup-terraform@v2
+      - uses: hashicorp/setup-terraform@v2
         with:
           terraform_version: 1.5.0
 
@@ -34,43 +32,40 @@ jobs:
         continue-on-error: true
 
       - name: Terraform Init
-        id: init
         run: terraform init
 
       - name: Terraform Validate
-        id: validate
         run: terraform validate
 
       - name: Terraform Plan
         id: plan
-        if: github.event_name == 'pull_request'
         run: |
-          terraform plan -no-color -input=false -out=tfplan 2>&1 | tee plan_output.txt
+          terraform plan -no-color -input=false 2>&1 | tee plan_output.txt
           echo "plan_output<<EOF" >> $GITHUB_OUTPUT
           grep -v 'Acquiring state lock\|Releasing state lock' plan_output.txt >> $GITHUB_OUTPUT
           echo "EOF" >> $GITHUB_OUTPUT
         continue-on-error: true
 
       - uses: actions/github-script@v6
-        if: github.event_name == 'pull_request' && steps.plan.outputs.plan_output
+        if: always() && github.event_name == 'pull_request'
         env:
           PLAN: "${{ steps.plan.outputs.plan_output }}"
         with:
           script: |
-            const output = `#### Terraform Format and Style 🖌 \`${{ steps.fmt.outcome }}\`
-            #### Terraform Initialization ⚙️ \`${{ steps.init.outcome }}\`
-            #### Terraform Validation 🤖 \`${{ steps.validate.outcome }}\`
-            #### Terraform Plan 📖 \`${{ steps.plan.outcome }}\`
-
-            <details><summary>Show Plan</summary>
-
+            const output = `#### Terraform Format \`${{ steps.fmt.outcome }}\`
+            #### Validation \`${{ steps.validate.outcome }}\`
+            #### Plan Result \`${{ steps.plan.outcome }}\`
+            
+            ${process.env.PLAN ? `<details><summary>Plan Output</summary>
+            
             \`\`\`terraform
             ${process.env.PLAN}
             \`\`\`
-
-            </details>
-            *Triggered by: @${{ github.actor }}*`;
-
+            
+            </details>` : 'No plan output available'}
+            
+            *Triggered by @${{ github.actor }}*`;
+            
             github.rest.issues.createComment({
               issue_number: context.issue.number,
               owner: context.repo.owner,
@@ -78,20 +73,14 @@ jobs:
               body: output
             })
 
-      - name: Terraform Plan Status
-        if: steps.plan.outcome == 'failure'
-        run: exit 1
-
   terraform-apply:
     name: "Terraform Apply"
     runs-on: ubuntu-latest
     if: github.event_name == 'push' && github.ref == 'refs/heads/master'
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v3
+      - uses: actions/checkout@v3
 
-      - name: Set up Terraform
-        uses: hashicorp/setup-terraform@v2
+      - uses: hashicorp/setup-terraform@v2
         with:
           terraform_version: 1.5.0
 
@@ -99,4 +88,8 @@ jobs:
         run: terraform init
 
       - name: Terraform Apply
-        run: terraform apply -auto-approve tfplan
+        run: |
+          terraform plan -input=false -no-color
+          terraform apply -auto-approve -input=false
+        env:
+          TF_APPROVE: true
