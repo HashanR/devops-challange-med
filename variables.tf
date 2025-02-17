@@ -10,6 +10,12 @@ variable "cluster_name" {
   default     = "devops-assesment-cluster"
 }
 
+variable "cluster_version" {
+  description = "The Kubernetes version to use for the EKS cluster"
+  type        = string
+  default     = "1.31"
+}
+
 variable "vpc_cidr" {
   description = "The CIDR block for the VPC"
   type        = string
@@ -33,3 +39,4 @@ variable "public_subnets" {
   type        = list(string)
   default     = ["10.0.101.0/24", "10.0.102.0/24", "10.0.103.0/24"]
 }
+
