@@ -1,8 +1,8 @@
 terraform {
   backend "s3" {
-    bucket         = "eks-clusters/devops-assesment-cluster" 
-    key            = "eks-cluster/terraform.tfstate"  
-    region         = "eu-west-1" 
+    bucket         = "hash-eks-terraform-state" 
+    key            = "eks-clusters/devops-assesment-cluster/terraform.tfstate"  
+    region         = "eu-north-1"
     encrypt        = true  
     dynamodb_table = "terraform-lock-table"
   }
