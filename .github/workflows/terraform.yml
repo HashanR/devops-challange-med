@@ -45,12 +45,14 @@ jobs:
         id: plan
         if: github.event_name == 'pull_request'
         run: |
-          terraform plan -no-color -input=false | tee plan_output.txt
-          echo "plan_output=$(cat plan_output.txt)" >> $GITHUB_OUTPUT
+          terraform plan -no-color -input=false -out=tfplan 2>&1 | tee plan_output.txt
+          echo "plan_output<<EOF" >> $GITHUB_OUTPUT
+          grep -v 'Acquiring state lock\|Releasing state lock' plan_output.txt >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
         continue-on-error: true
 
       - uses: actions/github-script@v6
-        if: github.event_name == 'pull_request'
+        if: github.event_name == 'pull_request' && steps.plan.outputs.plan_output
         env:
           PLAN: "${{ steps.plan.outputs.plan_output }}"
         with:
@@ -62,7 +64,7 @@ jobs:
 
             <details><summary>Show Plan</summary>
 
-            \`\`\`diff
+            \`\`\`terraform
             ${process.env.PLAN}
             \`\`\`
 
@@ -97,4 +99,4 @@ jobs:
         run: terraform init
 
       - name: Terraform Apply
-        run: terraform apply -auto-approve -input=false
+        run: terraform apply -auto-approve tfplan
