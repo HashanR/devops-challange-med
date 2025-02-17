@@ -2,11 +2,9 @@ name: Terraform CI/CD
 
 on:
   pull_request:
-    branches:
-      - master
+    branches: [master]
   push:
-    branches:
-      - master
+    branches: [master]
 
 env:
   AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
@@ -18,6 +16,9 @@ jobs:
     name: "Terraform Lint, Format, and Plan"
     runs-on: ubuntu-latest
     if: github.event_name == 'pull_request'
+    permissions:
+      contents: read
+      pull-requests: write
     steps:
       - name: Checkout code
         uses: actions/checkout@v3
@@ -42,17 +43,49 @@ jobs:
 
       - name: Terraform Plan
         id: plan
-        run: terraform plan -no-color -input=false
+        if: github.event_name == 'pull_request'
+        run: |
+          terraform plan -no-color -input=false -out=tfplan 2>&1 | tee plan_output.txt
+          echo "plan_output<<EOF" >> $GITHUB_OUTPUT
+          grep -v 'Acquiring state lock\|Releasing state lock' plan_output.txt >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
         continue-on-error: true
 
-      - name: Show Terraform Plan Output
-        run: echo "${{ steps.plan.outputs.stdout }}"
+      - uses: actions/github-script@v6
+        if: github.event_name == 'pull_request' && steps.plan.outputs.plan_output
+        env:
+          PLAN: "${{ steps.plan.outputs.plan_output }}"
+        with:
+          script: |
+            const output = `#### Terraform Format and Style 🖌 \`${{ steps.fmt.outcome }}\`
+            #### Terraform Initialization ⚙️ \`${{ steps.init.outcome }}\`
+            #### Terraform Validation 🤖 \`${{ steps.validate.outcome }}\`
+            #### Terraform Plan 📖 \`${{ steps.plan.outcome }}\`
+
+            <details><summary>Show Plan</summary>
+
+            \`\`\`terraform
+            ${process.env.PLAN}
+            \`\`\`
+
+            </details>
+            *Triggered by: @${{ github.actor }}*`;
+
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: output
+            })
+
+      - name: Terraform Plan Status
+        if: steps.plan.outcome == 'failure'
+        run: exit 1
 
   terraform-apply:
     name: "Terraform Apply"
     runs-on: ubuntu-latest
-    if: github.event_name == 'push' || github.ref == 'master'
-    needs: terraform-lint-format-plan
+    if: github.event_name == 'push' && github.ref == 'refs/heads/master'
     steps:
       - name: Checkout code
         uses: actions/checkout@v3
@@ -63,11 +96,7 @@ jobs:
           terraform_version: 1.5.0
 
       - name: Terraform Init
-        id: init
         run: terraform init
 
       - name: Terraform Apply
-        id: apply
-        run: terraform apply -auto-approve -input=false
-        env:
-          TF_APPROVE: true
+        run: terraform apply -auto-approve tfplan
