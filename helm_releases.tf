@@ -1,59 +1,60 @@
-# Install NGINX Ingress Controller using Helm
+########################################################
+#                                                      #
+#                        INGRESS                       #
+########################################################
 resource "helm_release" "nginx_ingress" {
+  
   name       = "nginx-ingress"
   repository = "https://kubernetes.github.io/ingress-nginx"  
   chart      = "ingress-nginx"
   version    = "4.12.0" 
-  namespace  = "ingress-nginx"  
-
-  # Create the namespace if it doesn't exist
-  set {
-    name  = "controller.createNamespace"
-    value = "true"
-  }
+  namespace  = "ingress-nginx" 
+  create_namespace = true
 
   set {
     name  = "controller.service.type"
     value = "LoadBalancer"
   }
 
-
   set {
     name  = "controller.service.annotations.service\\.beta\\.kubernetes\\.io/aws-load-balancer-type"
-    value = "nlb"  
+    value = "nlb"
   }
 
-  set {
-    name  = "controller.service.annotations.service\\.beta\\.kubernetes\\.io/aws-load-balancer-internal"
-    value = "false" 
-  }
+}
+########################################################
+#                                                      #
+#                    Kube Prom Stack                   #
+########################################################
+resource "helm_release" "kube_prometheus_stack" {
+  name             = "kube-prometheus-stack"
+  repository       = "https://prometheus-community.github.io/helm-charts"
+  chart            = "kube-prometheus-stack"
+  version          = "69.3.1"
+  namespace        = "monitoring"
+  create_namespace = true
 
-
+  # Enable Grafana Ingress
   set {
-    name  = "controller.metrics.enabled"
+    name  = "grafana.ingress.enabled"
     value = "true"
   }
-
-
   set {
-    name  = "controller.resources.requests.cpu"
-    value = "100m"
+    name  = "grafana.ingress.ingressClassName"
+    value = "nginx"
+  }
+  set {
+    name  = "grafana.ingress.hosts[0]"
+    value = "grafana.hashanr.cloud"
+  }
+  set {
+    name  = "grafana.ingress.paths[0]"
+    value = "/"
+  }
+  set {
+    name  = "grafana.ingress.annotations.kubernetes\\.io/ingress\\.class"
+    value = "nginx"
   }
 
-  set {
-    name  = "controller.resources.requests.memory"
-    value = "128Mi"
-  }
-
-  set {
-    name  = "controller.resources.limits.cpu"
-    value = "500m"
-  }
-
-  set {
-    name  = "controller.resources.limits.memory"
-    value = "512Mi"
-  }
-
-  wait = true
 }
+
