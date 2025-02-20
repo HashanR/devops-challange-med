@@ -1,117 +1,117 @@
-name: Terraform CI/CD
+# name: Terraform CI/CD
 
-on:
-  pull_request:
-    branches: [master]
-  push:
-    branches: [master]
+# on:
+#   pull_request:
+#     branches: [master]
+#   push:
+#     branches: [master]
 
-env:
-  AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
-  AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-  AWS_DEFAULT_REGION: "eu-north-1"
+# env:
+#   AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+#   AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+#   AWS_DEFAULT_REGION: "eu-north-1"
 
-jobs:
-  terraform-validation:
-    name: "Terraform Validate/Plan"
-    runs-on: ubuntu-latest
-    if: github.event_name == 'pull_request'
-    permissions:
-      contents: read
-      pull-requests: write
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v3
+# jobs:
+#   terraform-validation:
+#     name: "Terraform Validate/Plan"
+#     runs-on: ubuntu-latest
+#     if: github.event_name == 'pull_request'
+#     permissions:
+#       contents: read
+#       pull-requests: write
+#     steps:
+#       - name: Checkout code
+#         uses: actions/checkout@v3
 
-      - name: Setup Terraform
-        uses: hashicorp/setup-terraform@v2
-        with:
-          terraform_version: 1.5.0
+#       - name: Setup Terraform
+#         uses: hashicorp/setup-terraform@v2
+#         with:
+#           terraform_version: 1.5.0
 
-      - name: Terraform Format
-        id: fmt
-        run: terraform fmt -check
-        continue-on-error: true
+#       - name: Terraform Format
+#         id: fmt
+#         run: terraform fmt -check
+#         continue-on-error: true
 
-      - name: Terraform Init
-        id: init
-        run: terraform init
+#       - name: Terraform Init
+#         id: init
+#         run: terraform init
 
-      - name: Terraform Validate
-        id: validate
-        run: terraform validate
+#       - name: Terraform Validate
+#         id: validate
+#         run: terraform validate
 
-      - name: Terraform Plan
-        id: plan
-        run: |
-          terraform plan -no-color -input=false 2>&1 | tee plan_output.txt
-          echo "plan_output<<EOF" >> $GITHUB_OUTPUT
-          grep -v 'Acquiring state lock\|Releasing state lock' plan_output.txt >> $GITHUB_OUTPUT
-          echo "EOF" >> $GITHUB_OUTPUT
-        continue-on-error: true
+#       - name: Terraform Plan
+#         id: plan
+#         run: |
+#           terraform plan -no-color -input=false 2>&1 | tee plan_output.txt
+#           echo "plan_output<<EOF" >> $GITHUB_OUTPUT
+#           grep -v 'Acquiring state lock\|Releasing state lock' plan_output.txt >> $GITHUB_OUTPUT
+#           echo "EOF" >> $GITHUB_OUTPUT
+#         continue-on-error: true
 
-      - name: Post PR Comment
-        if: always() && github.event_name == 'pull_request'
-        uses: actions/github-script@v6
-        env:
-          PLAN: "${{ steps.plan.outputs.plan_output }}"
-        with:
-          script: |
-            const statusIcons = {
-              success: '✅ Succeeded',
-              failure: '❌ Failed',
-              skipped: '⚠️ Skipped'
-            };
+#       - name: Post PR Comment
+#         if: always() && github.event_name == 'pull_request'
+#         uses: actions/github-script@v6
+#         env:
+#           PLAN: "${{ steps.plan.outputs.plan_output }}"
+#         with:
+#           script: |
+#             const statusIcons = {
+#               success: '✅ Succeeded',
+#               failure: '❌ Failed',
+#               skipped: '⚠️ Skipped'
+#             };
 
-            const output = `## Terraform CI Report 🔍
+#             const output = `## Terraform CI Report 🔍
 
-            ### Execution Results
-            **Format & Style** 🖌️: ${statusIcons['${{ steps.fmt.outcome }}']}  
-            **Initialization** ⚙️: ${statusIcons['${{ steps.init.outcome }}']}  
-            **Validation** 🤖: ${statusIcons['${{ steps.validate.outcome }}']}  
-            **Plan** 📖: ${statusIcons['${{ steps.plan.outcome }}']}
+#             ### Execution Results
+#             **Format & Style** 🖌️: ${statusIcons['${{ steps.fmt.outcome }}']}  
+#             **Initialization** ⚙️: ${statusIcons['${{ steps.init.outcome }}']}  
+#             **Validation** 🤖: ${statusIcons['${{ steps.validate.outcome }}']}  
+#             **Plan** 📖: ${statusIcons['${{ steps.plan.outcome }}']}
 
-            ${process.env.PLAN ? `
-            <details><summary>📋 Detailed Plan Output</summary>
+#             ${process.env.PLAN ? `
+#             <details><summary>📋 Detailed Plan Output</summary>
 
-            \`\`\`terraform
-            ${process.env.PLAN}
-            \`\`\`
+#             \`\`\`terraform
+#             ${process.env.PLAN}
+#             \`\`\`
 
-            </details>
-            ` : '> 🚫 No plan output generated'}
+#             </details>
+#             ` : '> 🚫 No plan output generated'}
 
-            *Triggered by: @${{ github.actor }}*  
-            *Workflow run: [#${{ github.run_number }}](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})*`;
+#             *Triggered by: @${{ github.actor }}*  
+#             *Workflow run: [#${{ github.run_number }}](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})*`;
 
-            github.rest.issues.createComment({
-              issue_number: context.issue.number,
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              body: output
-            });
+#             github.rest.issues.createComment({
+#               issue_number: context.issue.number,
+#               owner: context.repo.owner,
+#               repo: context.repo.repo,
+#               body: output
+#             });
 
-      - name: Fail workflow if plan failed
-        if: steps.plan.outcome == 'failure'
-        run: exit 1
+#       - name: Fail workflow if plan failed
+#         if: steps.plan.outcome == 'failure'
+#         run: exit 1
 
-  terraform-apply:
-    name: "Terraform Apply"
-    runs-on: ubuntu-latest
-    if: github.event_name == 'push' && github.ref == 'refs/heads/master'
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v3
+#   terraform-apply:
+#     name: "Terraform Apply"
+#     runs-on: ubuntu-latest
+#     if: github.event_name == 'push' && github.ref == 'refs/heads/master'
+#     steps:
+#       - name: Checkout code
+#         uses: actions/checkout@v3
 
-      - name: Setup Terraform
-        uses: hashicorp/setup-terraform@v2
-        with:
-          terraform_version: 1.5.0
+#       - name: Setup Terraform
+#         uses: hashicorp/setup-terraform@v2
+#         with:
+#           terraform_version: 1.5.0
 
-      - name: Terraform Init
-        run: terraform init
+#       - name: Terraform Init
+#         run: terraform init
 
-      - name: Terraform Apply
-        run: |
-          terraform plan -input=false -no-color
-          terraform apply -auto-approve -input=false
+#       - name: Terraform Apply
+#         run: |
+#           terraform plan -input=false -no-color
+#           terraform apply -auto-approve -input=false
