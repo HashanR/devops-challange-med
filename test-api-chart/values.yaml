@@ -1,0 +1,30 @@
+nameOverride: ""
+
+image:
+  repository: dante77777/testdevops
+  tag: latest
+  pullPolicy: IfNotPresent
+
+service:
+  type: ClusterIP
+  port: 80
+  targetPort: 8080
+
+ingress:
+  enabled: true
+  className: "nginx"
+  host: "test.hashanr.cloud"
+  path: "/test-api"
+
+existingSecret:
+  name: "api-secrets"
+  key: "connection-string"
+
+configFileContent: |
+  # Default configuration
+  log_level = info
+  timeout = 30
+
+serviceMonitor:
+  enabled: true
+  namespace: monitoring
